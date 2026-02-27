@@ -24,4 +24,4 @@ app.include_router(paper_router, prefix="/api", tags=["papers"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=1024)
