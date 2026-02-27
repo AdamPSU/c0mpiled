@@ -20,10 +20,15 @@ hybrid_searcher = HybridSearcher()
 
 def calculate_hybrid_score(paper: dict) -> float:
     """
-    Computes a hybrid score (Historical * Momentum * Semantic Similarity) for a paper.
-    TreeScorer = (Historical Weight) * (Momentum Weight) * (Semantic Similarity)
-    """
+    Computes a hybrid TreeScorer as a weighted combination of raw values.
     
+    Formula:
+    Score = (0.4 * Historical) + (0.4 * Momentum) + (0.2 * Semantic)
+    
+    - Historical: log10(Total Citations + 1)
+    - Momentum: Total Citations / (Current Year - Published Year + 1)
+    - Semantic: Raw RRF score from hybrid search
+    """
     total_citations = paper.get("citationCount", 0) or 0
     published_year = paper.get("year")
     current_year = datetime.now().year
@@ -34,47 +39,39 @@ def calculate_hybrid_score(paper: dict) -> float:
     if published_year is None:
         return 0.0
         
-    # Historical Weight = log_10(Total Citations + 1)
-    historical_weight = math.log10(total_citations + 1)
+    # 1. Historical Weight (Raw log10)
+    historical_raw = math.log10(total_citations + 1)
     
-    # Momentum Weight = (Total Citations) / (Current Year - Published Year + 1)
-    # Adding 1 to the denominator to prevent division by zero for current year papers
-    momentum_weight = total_citations / (current_year - published_year + 1)
+    # 2. Momentum Weight (Raw citations/year)
+    years_active = (current_year - published_year) + 1
+    momentum_raw = total_citations / years_active
     
-    # TreeScorer Formula
-    return historical_weight * momentum_weight * semantic_similarity
+    # 3. Semantic Similarity (Raw RRF score)
+    semantic_raw = semantic_similarity
+    
+    # TreeScorer Formula (Weighted Linear Combination)
+    tree_scorer = (0.4 * historical_raw) + (0.4 * momentum_raw) + (0.2 * semantic_raw)
+    
+    return tree_scorer
 
-def filter_papers(papers: list) -> dict:
+def filter_papers(papers: list) -> list:
     """
-    Groups papers by year, sorts each year by hybrid score (TreeScorer) descending,
-    and keeps only the top 5 papers per year.
+    Calculates hybrid score (TreeScorer) for all papers and returns the top 30 
+    highest scoring papers across all years.
     """
-    grouped_papers = {}
-    
     for paper in papers:
-        year = paper.get("year")
-        if year is None:
-            continue
-            
-        if year not in grouped_papers:
-            grouped_papers[year] = []
-        
-        # Calculate hybrid score before adding to group
+        # Calculate hybrid score
         paper["hybrid_score"] = calculate_hybrid_score(paper)
-        grouped_papers[year].append(paper)
         
-    filtered_data = {}
-    for year, year_papers in grouped_papers.items():
-        # Sort by hybrid score (TreeScorer) descending
-        sorted_year_papers = sorted(
-            year_papers,
-            key=lambda x: x.get("hybrid_score", 0.0),
-            reverse=True
-        )
-        # Keep top 5
-        filtered_data[year] = sorted_year_papers[:5]
-        
-    return filtered_data
+    # Sort all papers by hybrid score descending
+    sorted_papers = sorted(
+        papers,
+        key=lambda x: x.get("hybrid_score", 0.0),
+        reverse=True
+    )
+    
+    # Return the 30 most relevant papers
+    return sorted_papers[:30]
 
 @router.get("/search")
 async def search_papers(
@@ -113,17 +110,25 @@ async def search_papers(
             # This handles deduplication and adds 'semantic_similarity' to papers with abstracts
             reranked_papers = await hybrid_searcher.hybrid_rerank(query, papers)
             
-            # Step 2: Group, Score with TreeScorer, and Filter by Year
-            filtered_papers = filter_papers(reranked_papers)
+            # Step 2: Score with TreeScorer and pick top 30
+            top_30_papers = filter_papers(reranked_papers)
+            
+            # Step 3: Group by year for discretization
+            final_data = {}
+            for paper in top_30_papers:
+                year = str(paper.get("year", "Unknown"))
+                if year not in final_data:
+                    final_data[year] = []
+                final_data[year].append(paper)
             
             # Sort the final dictionary by year descending
-            sorted_years = sorted(filtered_papers.keys(), reverse=True)
-            final_data = {str(year): filtered_papers[year] for year in sorted_years}
+            sorted_years = sorted(final_data.keys(), reverse=True)
+            sorted_final_data = {year: final_data[year] for year in sorted_years}
             
             return {
-                "total_unique_years": len(final_data),
+                "total_papers": len(top_30_papers),
                 "query": query,
-                "papers_by_year": final_data
+                "papers_by_year": sorted_final_data
             }
 
     except httpx.HTTPStatusError as e:
