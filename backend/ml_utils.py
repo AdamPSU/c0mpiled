@@ -34,13 +34,16 @@ class HybridSearcher:
             return other_papers
 
         # 2. Convert to LlamaIndex Documents
-        # We store the full paper dict in metadata for easy retrieval
+        # We store only the paperId in metadata to avoid "Metadata length longer than chunk size" errors
         documents = [
             Document(
                 text=p['abstract'], 
-                metadata={"paperId": p['paperId'], "original_data": p}
+                metadata={"paperId": p['paperId']}
             ) for p in valid_papers
         ]
+        
+        # Create a lookup map for the original data
+        paper_lookup = {p['paperId']: p for p in valid_papers}
 
         # 3. Setup Index & Retrievers
         # In-memory index for the current batch
@@ -67,7 +70,8 @@ class HybridSearcher:
         # 6. Reconstruct final list with fused scores
         fused_results = []
         for node in nodes:
-            paper_data = node.metadata["original_data"].copy()
+            paper_id = node.metadata["paperId"]
+            paper_data = paper_lookup[paper_id].copy()
             paper_data['semantic_similarity'] = node.score
             fused_results.append(paper_data)
 

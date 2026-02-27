@@ -80,7 +80,8 @@ async def search_papers(
 ):
     """
     Search for papers using the Semantic Scholar Bulk Search API.
-    Results are sorted by citation count in descending order.
+    Results are re-ranked using RRF (BM25 + Bi-Encoder), then the top 30 papers 
+    by TreeScorer (Historical + Momentum + Semantic) are returned and grouped by year.
     """
 
     headers = {}
@@ -113,13 +114,24 @@ async def search_papers(
             # Step 2: Score with TreeScorer and pick top 30
             top_30_papers = filter_papers(reranked_papers)
             
-            # Step 3: Group by year for discretization
+            # Step 3: Group and format by year for discretization
             final_data = {}
             for paper in top_30_papers:
-                year = str(paper.get("year", "Unknown"))
-                if year not in final_data:
-                    final_data[year] = []
-                final_data[year].append(paper)
+                year_val = paper.get("year", "Unknown")
+                year_key = str(year_val)
+                
+                if year_key not in final_data:
+                    final_data[year_key] = []
+                
+                # Format to the new schema: {year, name, link, abstract, score}
+                formatted_paper = {
+                    "year": year_val,
+                    "name": paper.get("title"),
+                    "link": (paper.get("openAccessPdf") or {}).get("url") if paper.get("openAccessPdf") else None,
+                    "abstract": paper.get("abstract"),
+                    "score": paper.get("hybrid_score")
+                }
+                final_data[year_key].append(formatted_paper)
             
             # Sort the final dictionary by year descending
             sorted_years = sorted(final_data.keys(), reverse=True)
