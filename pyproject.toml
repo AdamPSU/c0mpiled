@@ -8,5 +8,9 @@ dependencies = [
     "dotenv>=0.9.9",
     "fastapi>=0.134.0",
     "httpx>=0.28.1",
+    "lancedb>=0.29.2",
+    "pandas>=3.0.1",
+    "sentence-transformers>=5.2.3",
+    "tantivy>=0.25.1",
     "uvicorn>=0.41.0",
 ]

@@ -26,7 +26,7 @@ class AncestryTreeGenerator:
         }
 
         payload = {
-            "model": "openai/gpt-4o-mini", # Balanced model for reasoning and structured output
+            "model": "google/gemini-3-flash-preview", # Optimized model for reasoning and structured output (Gemini 3 Fast)
             "messages": [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": json.dumps(user_message)}
@@ -37,8 +37,8 @@ class AncestryTreeGenerator:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://c0mpiled.ai", # Site URL for OpenRouter ranking
-            "X-Title": "C0mpiled Paper Search"
+            "HTTP-Referer": "https://ancestry.ai", # Site URL for OpenRouter ranking
+            "X-Title": "Ancestry Paper Search"
         }
 
         try:
@@ -47,7 +47,6 @@ class AncestryTreeGenerator:
                     self.base_url,
                     json=payload,
                     headers=headers,
-                    timeout=60.0
                 )
                 response.raise_for_status()
                 result = response.json()

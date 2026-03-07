@@ -1,5 +1,5 @@
 def main():
-    print("Hello from c0mpiled!")
+    print("Hello from ancestry!")
 
 
 if __name__ == "__main__":
